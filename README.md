@@ -15,6 +15,7 @@ A terminal-based system monitor with ASCII animation built in Go using Bubble Te
 - Real-time system information display
 - Animated rain cloud ASCII art (default)
 - Custom ASCII frame file support for personalized animations
+- JSON configuration file for customizable display options
 - Cross-platform compatibility (Windows, Linux, macOS, Android/Termux)
 - Color palette with animated wave effects
 - System metrics including CPU, memory, disk usage, and load average
@@ -74,6 +75,50 @@ The project includes build scripts for different platforms:
 # Run with custom frames file and frame rate
 ./gophetch frames.txt 500ms
 ```
+
+## Configuration
+
+Gophetch supports a JSON configuration file (`gophetch.json`) that is automatically created on first run. You can customize all display options:
+
+```json
+{
+  "fps": 5,
+  "color_scheme": "blue",
+  "show_cpu": true,
+  "show_memory": true,
+  "show_disk": true,
+  "show_uptime": true,
+  "show_kernel": true,
+  "show_os": true,
+  "show_hostname": true,
+  "frame_file": "default",
+  "loop_animation": true,
+  "center_content": true,
+  "static_mode": false,
+  "hide_animation": false,
+  "show_fps_counter": false,
+  "show_weather": false
+}
+```
+
+### Configuration Options
+
+- **fps**: Animation frame rate (default: 5)
+- **color_scheme**: Main color theme (default: "blue")
+- **show_cpu**: Display CPU information (default: true)
+- **show_memory**: Display memory information (default: true)
+- **show_disk**: Display disk usage (default: true)
+- **show_uptime**: Display system uptime (default: true)
+- **show_kernel**: Display kernel/Go version (default: true)
+- **show_os**: Display OS and architecture (default: true)
+- **show_hostname**: Display username (default: true)
+- **frame_file**: Path to custom ASCII frames file (default: "default")
+- **loop_animation**: Loop animation frames (default: true)
+- **center_content**: Center ASCII art (default: true)
+- **static_mode**: One-shot info dump like Neofetch (default: false)
+- **hide_animation**: Skip animation even if frames exist (default: false)
+- **show_fps_counter**: Show FPS overlay (default: false)
+- **show_weather**: Display weather info (default: false)
 
 ## Frame File Format
 

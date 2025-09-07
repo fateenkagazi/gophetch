@@ -3,9 +3,12 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"math/rand"
+	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
@@ -36,6 +39,34 @@ type SystemInfo struct {
 	Processes    int
 	LoadAvg      string
 	Username     string
+	Weather      string
+}
+
+// Config holds all configuration options
+type Config struct {
+	// Display settings
+	FPS          int    `json:"fps"`
+	ColorScheme  string `json:"color_scheme"`
+	ShowCPU      bool   `json:"show_cpu"`
+	ShowMemory   bool   `json:"show_memory"`
+	ShowDisk     bool   `json:"show_disk"`
+	ShowUptime   bool   `json:"show_uptime"`
+	ShowKernel   bool   `json:"show_kernel"`
+	ShowOS       bool   `json:"show_os"`
+	ShowHostname bool   `json:"show_hostname"`
+
+	// Frame / animation settings
+	FrameFile     string `json:"frame_file"`
+	LoopAnimation bool   `json:"loop_animation"`
+	CenterContent bool   `json:"center_content"`
+
+	// Output mode
+	StaticMode    bool `json:"static_mode"`
+	HideAnimation bool `json:"hide_animation"`
+
+	// Misc
+	ShowFPSCounter bool `json:"show_fps_counter"`
+	ShowWeather    bool `json:"show_weather"`
 }
 
 // Model represents the Bubble Tea model
@@ -45,6 +76,7 @@ type Model struct {
 	frameRate    time.Duration
 	startTime    time.Time
 	sysInfo      SystemInfo
+	config       Config
 	ctx          context.Context
 	cancel       context.CancelFunc
 	width        int
@@ -333,25 +365,35 @@ func (m Model) renderSystemInfo() string {
 	info.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("─────────────────────"))
 	info.WriteString("\n\n")
 
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("OS:"),
-		valueStyle.Render(fmt.Sprintf("%s (%s)", m.sysInfo.OS, m.sysInfo.Architecture))))
+	if m.config.ShowOS {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("OS:"),
+			valueStyle.Render(fmt.Sprintf("%s (%s)", m.sysInfo.OS, m.sysInfo.Architecture))))
+	}
 
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("User:"),
-		valueStyle.Render(m.sysInfo.Username)))
+	if m.config.ShowHostname {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("User:"),
+			valueStyle.Render(m.sysInfo.Username)))
+	}
 
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("CPU:"),
-		valueStyle.Render(fmt.Sprintf("%d cores", m.sysInfo.CPUCount))))
+	if m.config.ShowCPU {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("CPU:"),
+			valueStyle.Render(fmt.Sprintf("%d cores", m.sysInfo.CPUCount))))
+	}
 
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("Memory:"),
-		valueStyle.Render(m.sysInfo.Memory)))
+	if m.config.ShowMemory {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Memory:"),
+			valueStyle.Render(m.sysInfo.Memory)))
+	}
 
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("Go Version:"),
-		valueStyle.Render(m.sysInfo.GoVersion)))
+	if m.config.ShowKernel {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Go Version:"),
+			valueStyle.Render(m.sysInfo.GoVersion)))
+	}
 
 	if m.sysInfo.Processes > 0 {
 		info.WriteString(fmt.Sprintf("%s %s\n",
@@ -365,9 +407,11 @@ func (m Model) renderSystemInfo() string {
 			valueStyle.Render(strings.TrimPrefix(m.sysInfo.LoadAvg, "Load: "))))
 	}
 
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("Disk:"),
-		valueStyle.Render(strings.TrimPrefix(m.sysInfo.DiskUsage, "Disk: "))))
+	if m.config.ShowDisk {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Disk:"),
+			valueStyle.Render(strings.TrimPrefix(m.sysInfo.DiskUsage, "Disk: "))))
+	}
 
 	// Runtime information
 	info.WriteString("\n")
@@ -376,18 +420,28 @@ func (m Model) renderSystemInfo() string {
 	info.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("─────────────────────"))
 	info.WriteString("\n\n")
 
-	uptime := time.Since(m.startTime)
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("Uptime:"),
-		valueStyle.Render(uptime.Truncate(time.Second).String())))
+	if m.config.ShowUptime {
+		uptime := time.Since(m.startTime)
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Uptime:"),
+			valueStyle.Render(uptime.Truncate(time.Second).String())))
+	}
 
 	info.WriteString(fmt.Sprintf("%s %s\n",
 		infoStyle.Render("Time:"),
 		valueStyle.Render(time.Now().Format("15:04:05"))))
 
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("FPS:"),
-		valueStyle.Render(fmt.Sprintf("%.1f", float64(time.Second)/float64(m.frameRate)))))
+	if m.config.ShowWeather {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Weather:"),
+			valueStyle.Render(strings.TrimPrefix(m.sysInfo.Weather, "Weather: "))))
+	}
+
+	if m.config.ShowFPSCounter {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("FPS:"),
+			valueStyle.Render(fmt.Sprintf("%.1f", float64(time.Second)/float64(m.frameRate)))))
+	}
 
 	return info.String()
 }
@@ -516,6 +570,9 @@ func GetSystemInfo() SystemInfo {
 
 	// Get load average (Unix-like systems)
 	info.LoadAvg = getLoadAverage()
+
+	// Get weather information
+	info.Weather = getWeather()
 
 	return info
 }
@@ -920,14 +977,113 @@ func extractColor(line string) lipgloss.Color {
 	return lipgloss.Color("252")
 }
 
-func main() {
-	var frames []Frame
-	var err error
-	frameRate := 200 * time.Millisecond
+// getWeather gets weather information from wttr.in
+func getWeather() string {
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
 
-	// Parse command line arguments
+	resp, err := client.Get("https://wttr.in/?format=%C+%t")
+	if err != nil {
+		return "Weather: N/A"
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "Weather: N/A"
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "Weather: N/A"
+	}
+
+	weather := strings.TrimSpace(string(body))
+	if weather == "" {
+		return "Weather: N/A"
+	}
+
+	return fmt.Sprintf("Weather: %s", weather)
+}
+
+// getDefaultConfig returns the default configuration
+func getDefaultConfig() Config {
+	return Config{
+		// Display settings
+		FPS:          5,
+		ColorScheme:  "blue",
+		ShowCPU:      true,
+		ShowMemory:   true,
+		ShowDisk:     true,
+		ShowUptime:   true,
+		ShowKernel:   true,
+		ShowOS:       true,
+		ShowHostname: true,
+
+		// Frame / animation settings
+		FrameFile:     "default",
+		LoopAnimation: true,
+		CenterContent: true,
+
+		// Output mode
+		StaticMode:    false,
+		HideAnimation: false,
+
+		// Misc
+		ShowFPSCounter: false,
+		ShowWeather:    false,
+	}
+}
+
+// loadConfig loads configuration from file or creates default
+func loadConfig() (Config, error) {
+	configPath := "gophetch.json"
+
+	// Check if config file exists
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// Create default config file
+		defaultConfig := getDefaultConfig()
+		data, err := json.MarshalIndent(defaultConfig, "", "  ")
+		if err != nil {
+			return defaultConfig, fmt.Errorf("failed to marshal default config: %v", err)
+		}
+
+		if err := os.WriteFile(configPath, data, 0644); err != nil {
+			return defaultConfig, fmt.Errorf("failed to write default config: %v", err)
+		}
+
+		fmt.Printf("Created default config file: %s\n", configPath)
+		return defaultConfig, nil
+	}
+
+	// Load existing config
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return getDefaultConfig(), fmt.Errorf("failed to read config file: %v", err)
+	}
+
+	var config Config
+	if err := json.Unmarshal(data, &config); err != nil {
+		return getDefaultConfig(), fmt.Errorf("failed to parse config file: %v", err)
+	}
+
+	return config, nil
+}
+
+func main() {
+	// Load configuration
+	config, err := loadConfig()
+	if err != nil {
+		fmt.Printf("Warning: %v, using defaults\n", err)
+		config = getDefaultConfig()
+	}
+
+	var frames []Frame
+	frameRate := time.Duration(1000/config.FPS) * time.Millisecond
+
+	// Load frames based on config or command line arguments
 	if len(os.Args) > 1 {
-		// Check if first argument is a filename (contains .txt or doesn't parse as duration)
+		// Command line arguments override config
 		if strings.Contains(os.Args[1], ".txt") || strings.Contains(os.Args[1], ".frames") {
 			// Load frames from file
 			filename := os.Args[1]
@@ -953,6 +1109,19 @@ func main() {
 				frameRate = duration
 			}
 		}
+	} else {
+		// Use config file setting
+		if config.FrameFile != "default" && config.FrameFile != "" {
+			fmt.Printf("Loading frames from config file: %s\n", config.FrameFile)
+			frames, err = LoadFramesFromFile(config.FrameFile)
+			if err != nil {
+				fmt.Printf("Error loading config frame file: %v\n", err)
+				fmt.Printf("Falling back to rain animation...\n")
+				frames = []Frame{} // Use rain animation as fallback
+			} else {
+				fmt.Printf("Successfully loaded %d frames from config\n", len(frames))
+			}
+		}
 	}
 
 	// If no frames loaded, use rain animation
@@ -970,6 +1139,7 @@ func main() {
 		frameRate:    frameRate,
 		startTime:    time.Now(),
 		sysInfo:      GetSystemInfo(),
+		config:       config,
 		ctx:          ctx,
 		cancel:       cancel,
 		mutex:        &sync.RWMutex{},
