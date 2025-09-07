@@ -921,20 +921,51 @@ func extractColor(line string) lipgloss.Color {
 }
 
 func main() {
-	// Set frame rate for rain animation
+	var frames []Frame
+	var err error
 	frameRate := 200 * time.Millisecond
+
+	// Parse command line arguments
 	if len(os.Args) > 1 {
-		if duration, err := time.ParseDuration(os.Args[1]); err == nil {
-			frameRate = duration
+		// Check if first argument is a filename (contains .txt or doesn't parse as duration)
+		if strings.Contains(os.Args[1], ".txt") || strings.Contains(os.Args[1], ".frames") {
+			// Load frames from file
+			filename := os.Args[1]
+			fmt.Printf("Loading frames from file: %s\n", filename)
+			frames, err = LoadFramesFromFile(filename)
+			if err != nil {
+				fmt.Printf("Error loading file: %v\n", err)
+				fmt.Printf("Falling back to rain animation...\n")
+				frames = []Frame{} // Use rain animation as fallback
+			} else {
+				fmt.Printf("Successfully loaded %d frames\n", len(frames))
+			}
+
+			// Check for frame rate as second argument
+			if len(os.Args) > 2 {
+				if duration, err := time.ParseDuration(os.Args[2]); err == nil {
+					frameRate = duration
+				}
+			}
+		} else {
+			// First argument is frame rate
+			if duration, err := time.ParseDuration(os.Args[1]); err == nil {
+				frameRate = duration
+			}
 		}
+	}
+
+	// If no frames loaded, use rain animation
+	if len(frames) == 0 {
+		frames = []Frame{} // Empty frames will trigger rain animation
 	}
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Create model with rain animation (no external frames needed)
+	// Create model
 	model := Model{
-		frames:       []Frame{}, // Empty since we're using generateCloudWithRain
+		frames:       frames,
 		currentFrame: 0,
 		frameRate:    frameRate,
 		startTime:    time.Now(),

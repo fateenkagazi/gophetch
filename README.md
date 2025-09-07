@@ -31,7 +31,7 @@ go build
 ## Usage
 
 ```bash
-# Run with default settings
+# Run with default rain animation
 ./gophetch
 
 # Run with custom frame rate
@@ -39,6 +39,29 @@ go build
 
 # Run with custom ASCII frames file
 ./gophetch frames.txt
+
+# Run with custom frames file and frame rate
+./gophetch frames.txt 500ms
+```
+
+## Frame File Format
+
+Custom ASCII frames can be loaded from text files. Each frame is separated by `---FRAME---`:
+
+```
+┌─────────────┐
+│   FRAME 1   │
+│  ┌───────┐  │
+│  │ ● ● ● │  │
+│  └───────┘  │
+└─────────────┘
+---FRAME---
+┌─────────────┐
+│   FRAME 2   │
+│  ┌───────┐  │
+│  │ ○ ● ○ │  │
+│  └───────┘  │
+└─────────────┘
 ```
 
 ## Controls
