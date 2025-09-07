@@ -13,7 +13,8 @@ A terminal-based system monitor with ASCII animation built in Go using Bubble Te
 ## Features
 
 - Real-time system information display
-- Animated rain cloud ASCII art
+- Animated rain cloud ASCII art (default)
+- Custom ASCII frame file support for personalized animations
 - Cross-platform compatibility (Windows, Linux, macOS, Android/Termux)
 - Color palette with animated wave effects
 - System metrics including CPU, memory, disk usage, and load average
