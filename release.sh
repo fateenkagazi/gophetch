@@ -6,7 +6,7 @@ set -e
 VERSION=${1:-"1.0.0"}
 RELEASE_DIR="releases"
 
-echo "Building Gophetch v$VERSION for all platforms..."
+echo "Building Gophetch $VERSION for all platforms..."
 
 # Create release directory
 mkdir -p "$RELEASE_DIR"
@@ -56,12 +56,12 @@ sha256sum gophetch-${VERSION}-* > gophetch-${VERSION}-checksums.txt
 cd ..
 
 echo ""
-echo "Release v$VERSION built successfully!"
+echo "Release $VERSION built successfully!"
 echo "Files created in $RELEASE_DIR/:"
 ls -la "$RELEASE_DIR/"
 
 echo ""
 echo "To create a GitHub release:"
-echo "1. Create a new release on GitHub with tag v$VERSION"
+echo "1. Create a new release on GitHub with tag $VERSION"
 echo "2. Upload all files from $RELEASE_DIR/"
 echo "3. Use the checksums file for verification"
