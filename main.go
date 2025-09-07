@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -393,17 +394,23 @@ func (m Model) renderSystemInfo() string {
 
 // getUsername gets the current username (cross-platform)
 func getUsername() string {
-	username := os.Getenv("USER")
-	if username == "" {
-		username = os.Getenv("USERNAME") // Windows
+	// Try various environment variables for different systems
+	envVars := []string{"USER", "USERNAME", "LOGNAME", "PREFIX", "ANDROID_ROOT"}
+
+	for _, envVar := range envVars {
+		if username := os.Getenv(envVar); username != "" {
+			return username
+		}
 	}
-	if username == "" {
-		username = os.Getenv("LOGNAME") // Some Unix systems
+
+	// Try to get user from whoami command as fallback
+	if runtime.GOOS == "linux" || runtime.GOOS == "android" {
+		if output, err := exec.Command("whoami").Output(); err == nil {
+			return strings.TrimSpace(string(output))
+		}
 	}
-	if username == "" {
-		username = "Unknown"
-	}
-	return username
+
+	return "Unknown"
 }
 
 // GetSystemInfo gathers comprehensive system information
@@ -444,6 +451,8 @@ func getDiskUsage() string {
 	switch runtime.GOOS {
 	case "linux", "darwin":
 		return getUnixDiskUsage()
+	case "android":
+		return getAndroidDiskUsage()
 	case "windows":
 		return getWindowsDiskUsage()
 	default:
@@ -479,6 +488,58 @@ func getLinuxDiskUsageFromProc() string {
 	}
 
 	return "Linux filesystem accessible"
+}
+
+// getAndroidDiskUsage gets disk usage on Android/Termux
+func getAndroidDiskUsage() string {
+	pwd, err := os.Getwd()
+	if err != nil {
+		return "Cannot access current directory"
+	}
+
+	// Try to get basic directory info
+	info, err := os.Stat(pwd)
+	if err != nil {
+		return "Directory not accessible"
+	}
+
+	// Check if we can read and write
+	readable := true
+	writable := true
+
+	// Try to create a temporary file to test write permissions
+	tempFile := pwd + "/.gophetch_test"
+	if f, err := os.Create(tempFile); err != nil {
+		writable = false
+	} else {
+		f.Close()
+		os.Remove(tempFile) // Clean up
+	}
+
+	// Try to read directory to test read permissions
+	if _, err := os.ReadDir(pwd); err != nil {
+		readable = false
+	}
+
+	// Format permissions
+	perms := ""
+	if readable && writable {
+		perms = " (R/W)"
+	} else if readable {
+		perms = " (R)"
+	} else if writable {
+		perms = " (W)"
+	} else {
+		perms = " (No access)"
+	}
+
+	// Get directory name for display
+	dirName := "Termux"
+	if info.IsDir() {
+		dirName = "Android"
+	}
+
+	return fmt.Sprintf("%s filesystem%s", dirName, perms)
 }
 
 // getWindowsDiskUsage gets disk usage on Windows
@@ -534,6 +595,8 @@ func getProcessCount() int {
 	switch runtime.GOOS {
 	case "linux":
 		return getLinuxProcessCount()
+	case "android":
+		return getAndroidProcessCount()
 	case "darwin":
 		return getDarwinProcessCount()
 	case "windows":
@@ -541,6 +604,19 @@ func getProcessCount() int {
 	default:
 		return -1
 	}
+}
+
+// getAndroidProcessCount gets process count on Android/Termux
+func getAndroidProcessCount() int {
+	// Try to use ps command as fallback
+	if output, err := exec.Command("ps", "-A").Output(); err == nil {
+		lines := strings.Split(string(output), "\n")
+		// Subtract 1 for the header line
+		return len(lines) - 1
+	}
+
+	// Fallback to CPU-based estimate
+	return runtime.NumCPU() * 30 // Conservative estimate for mobile
 }
 
 // getLinuxProcessCount gets process count on Linux from /proc
@@ -576,6 +652,8 @@ func getLoadAverage() string {
 	switch runtime.GOOS {
 	case "linux":
 		return getLinuxLoadAverage()
+	case "android":
+		return getAndroidLoadAverage()
 	case "darwin":
 		return "macOS - use Activity Monitor"
 	case "windows":
@@ -583,6 +661,29 @@ func getLoadAverage() string {
 	default:
 		return "N/A"
 	}
+}
+
+// getAndroidLoadAverage calculates a simple load estimate for Android/Termux
+func getAndroidLoadAverage() string {
+	// For Android/Termux, we'll use a simple CPU usage estimate
+	// This is a basic approximation since Android doesn't have traditional load averages
+	cpuCount := runtime.NumCPU()
+
+	// Get memory stats as a proxy for system load
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	// Calculate a simple load estimate based on memory usage and GC activity
+	memUsagePercent := float64(m.Alloc) / float64(m.Sys) * 100
+	gcLoad := float64(m.NumGC) / 100.0 // Normalize GC count
+
+	// Combine into a simple load estimate (0.0 to cpuCount*2.0)
+	estimatedLoad := (memUsagePercent/100.0 + gcLoad) * float64(cpuCount)
+	if estimatedLoad > float64(cpuCount)*2.0 {
+		estimatedLoad = float64(cpuCount) * 2.0
+	}
+
+	return fmt.Sprintf("%.2f (est)", estimatedLoad)
 }
 
 // getWindowsLoadAverage calculates a simple load estimate for Windows
