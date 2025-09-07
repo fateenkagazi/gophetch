@@ -17,6 +17,12 @@
 # Go workspace file
 go.work
 
+# Build outputs
+gophetch
+gophetch.exe
+releases/
+dist/
+
 # IDE files
 .vscode/
 .idea/

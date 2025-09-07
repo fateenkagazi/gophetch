@@ -1,5 +1,9 @@
 # Gophetch
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/Cod-e-Codes/gophetch)](https://goreportcard.com/report/github.com/Cod-e-Codes/gophetch)
+[![CI](https://github.com/Cod-e-Codes/gophetch/workflows/CI/badge.svg)](https://github.com/Cod-e-Codes/gophetch/actions)
+[![Release](https://img.shields.io/github/v/release/Cod-e-Codes/gophetch)](https://github.com/Cod-e-Codes/gophetch/releases)
+
 A terminal-based system monitor with ASCII animation built in Go using Bubble Tea.
 
 <img src="gophetch-demo.gif" width="600" alt="Gophetch Demo">
@@ -22,10 +26,36 @@ A terminal-based system monitor with ASCII animation built in Go using Bubble Te
 
 ## Installation
 
+### From Source
 ```bash
-git clone <repository-url>
+git clone https://github.com/Cod-e-Codes/gophetch.git
 cd gophetch
 go build
+```
+
+### From Releases
+Download the latest release for your platform from the [Releases](https://github.com/Cod-e-Codes/gophetch/releases) page.
+
+### Build Scripts
+The project includes build scripts for different platforms:
+
+**PowerShell (Windows):**
+```powershell
+.\build.ps1                    # Build for current platform
+.\build.ps1 -Release           # Build optimized release
+.\build.ps1 -Platform "linux/amd64"  # Cross-compile
+```
+
+**Bash (Linux/macOS):**
+```bash
+./build.sh                     # Build for current platform
+./build.sh --release           # Build optimized release
+./build.sh --platform "windows/amd64"  # Cross-compile
+```
+
+**Release Build (All Platforms):**
+```bash
+./release.sh 1.0.0             # Build release for all platforms
 ```
 
 ## Usage
