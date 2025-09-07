@@ -4,7 +4,7 @@ A terminal-based system monitor with ASCII animation built in Go using Bubble Te
 
 <img src="gophetch-demo.gif" width="600" alt="Gophetch Demo">
 
-*Note: Screen recording was done in Termux, so some values appear unreadable, but they display correctly on PC.*
+*Demo showing the animated rain cloud, color palette, and real-time system information.*
 
 ## Features
 
