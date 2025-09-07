@@ -17,7 +17,7 @@ A terminal-based system monitor with ASCII animation built in Go using Bubble Te
 
 ## Requirements
 
-- Go 1.25.1 or later
+- Go 1.21 or later
 - Terminal with ANSI color support
 
 ## Installation
