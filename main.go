@@ -394,23 +394,102 @@ func (m Model) renderSystemInfo() string {
 
 // getUsername gets the current username (cross-platform)
 func getUsername() string {
+	// Check if we're in Termux environment
+	if isTermux() {
+		return getTermuxUsername()
+	}
+
 	// Try various environment variables for different systems
-	envVars := []string{"USER", "USERNAME", "LOGNAME", "PREFIX", "ANDROID_ROOT"}
+	envVars := []string{"USER", "USERNAME", "LOGNAME"}
 
 	for _, envVar := range envVars {
 		if username := os.Getenv(envVar); username != "" {
-			return username
+			// Skip Termux installation directory
+			if !strings.Contains(username, "/data/data/com.termux") {
+				return username
+			}
 		}
 	}
 
 	// Try to get user from whoami command as fallback
 	if runtime.GOOS == "linux" || runtime.GOOS == "android" {
 		if output, err := exec.Command("whoami").Output(); err == nil {
-			return strings.TrimSpace(string(output))
+			username := strings.TrimSpace(string(output))
+			if username != "" && !strings.Contains(username, "/data/data/com.termux") {
+				return username
+			}
+		}
+
+		// Try id -un as alternative
+		if output, err := exec.Command("id", "-un").Output(); err == nil {
+			username := strings.TrimSpace(string(output))
+			if username != "" && !strings.Contains(username, "/data/data/com.termux") {
+				return username
+			}
 		}
 	}
 
 	return "Unknown"
+}
+
+// isTermux detects if we're running in Termux environment
+func isTermux() bool {
+	// Check for Termux-specific environment variables or paths
+	termuxIndicators := []string{
+		"PREFIX",         // Termux sets this to /data/data/com.termux/files/usr
+		"ANDROID_ROOT",   // Android system indicator
+		"TERMUX_VERSION", // Termux version variable
+	}
+
+	for _, indicator := range termuxIndicators {
+		if value := os.Getenv(indicator); value != "" {
+			if strings.Contains(value, "termux") || strings.Contains(value, "android") {
+				return true
+			}
+		}
+	}
+
+	// Check if PWD contains termux path
+	if pwd := os.Getenv("PWD"); pwd != "" {
+		if strings.Contains(pwd, "/data/data/com.termux") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// getTermuxUsername gets the username specifically for Termux
+func getTermuxUsername() string {
+	// First try USER environment variable
+	if user := os.Getenv("USER"); user != "" && !strings.Contains(user, "/data/data/com.termux") {
+		return user
+	}
+
+	// Try whoami command
+	if output, err := exec.Command("whoami").Output(); err == nil {
+		username := strings.TrimSpace(string(output))
+		if username != "" && !strings.Contains(username, "/data/data/com.termux") {
+			return username
+		}
+	}
+
+	// Try id -un command
+	if output, err := exec.Command("id", "-un").Output(); err == nil {
+		username := strings.TrimSpace(string(output))
+		if username != "" && !strings.Contains(username, "/data/data/com.termux") {
+			return username
+		}
+	}
+
+	// Try to extract from PREFIX path as last resort
+	if prefix := os.Getenv("PREFIX"); prefix != "" {
+		// PREFIX is usually /data/data/com.termux/files/usr
+		// We can't get the actual username from this, so return a generic termux user
+		return "termux"
+	}
+
+	return "termux"
 }
 
 // GetSystemInfo gathers comprehensive system information
