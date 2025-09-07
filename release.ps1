@@ -45,10 +45,9 @@ foreach ($platform in $Platforms) {
     
     # Build with release flags
     $OutputPath = "$ReleaseDir/gophetch-${Version}-${GOOS}-${GOARCH}$($Output.Substring(7))"
-    $BuildCmd = "go build -ldflags=`"-s -w`" -o $OutputPath"
     
     try {
-        Invoke-Expression $BuildCmd
+        & go build -ldflags="-s -w" -o $OutputPath
         Write-Host "✓ Built gophetch-${Version}-${GOOS}-${GOARCH}$($Output.Substring(7))" -ForegroundColor Green
     }
     catch {

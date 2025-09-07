@@ -41,9 +41,7 @@ for platform in "${PLATFORMS[@]}"; do
     export GOARCH
     
     # Build with release flags
-    BUILD_CMD="go build -ldflags=\"-s -w\" -o $RELEASE_DIR/gophetch-${VERSION}-${GOOS}-${GOARCH}${OUTPUT##gophetch}"
-    
-    if $BUILD_CMD; then
+    if go build -ldflags="-s -w" -o "$RELEASE_DIR/gophetch-${VERSION}-${GOOS}-${GOARCH}${OUTPUT##gophetch}"; then
         echo "✓ Built gophetch-${VERSION}-${GOOS}-${GOARCH}${OUTPUT##gophetch}"
     else
         echo "✗ Failed to build for $GOOS/$GOARCH"

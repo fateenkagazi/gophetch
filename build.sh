@@ -56,10 +56,9 @@ export GOOS
 export GOARCH
 
 # Build the application
-BUILD_CMD="go build $LDFLAGS -o $OUTPUT"
-echo "Running: $BUILD_CMD"
+echo "Running: go build $LDFLAGS -o $OUTPUT"
 
-if $BUILD_CMD; then
+if go build $LDFLAGS -o "$OUTPUT"; then
     echo "Build successful! Output: $OUTPUT"
     
     # Show file info

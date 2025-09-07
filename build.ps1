@@ -19,11 +19,15 @@ $env:GOOS = $Platform.Split('/')[0]
 $env:GOARCH = $Platform.Split('/')[1]
 
 # Build the application
-$buildCmd = "go build $ldflags -o $Output"
-Write-Host "Running: $buildCmd" -ForegroundColor Cyan
+Write-Host "Running: go build $ldflags -o $Output" -ForegroundColor Cyan
 
 try {
-    Invoke-Expression $buildCmd
+    if ($ldflags) {
+        & go build $ldflags -o $Output
+    } else {
+        & go build -o $Output
+    }
+    
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Build successful! Output: $Output" -ForegroundColor Green
         
