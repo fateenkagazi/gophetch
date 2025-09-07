@@ -2,6 +2,10 @@
 
 A terminal-based system monitor with ASCII animation built in Go using Bubble Tea.
 
+<img src="gophetch-demo.gif" width="600" alt="Gophetch Demo">
+
+*Note: Screen recording was done in Termux, so some values appear unreadable, but they display correctly on PC.*
+
 ## Features
 
 - Real-time system information display
