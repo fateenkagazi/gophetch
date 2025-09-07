@@ -1,6 +1,6 @@
-module gophetch
+module github.com/Cod-e-Codes/gophetch
 
-go 1.25.1
+go 1.21
 
 require (
 	github.com/charmbracelet/bubbletea v0.25.0
