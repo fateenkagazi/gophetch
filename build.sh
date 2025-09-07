@@ -44,7 +44,7 @@ echo "Building Gophetch..."
 # Set build flags
 LDFLAGS=""
 if [ "$RELEASE" = true ]; then
-    LDFLAGS="-ldflags='-s -w'"
+    LDFLAGS="-ldflags=\"-s -w\""
     echo "Building in release mode (stripped binaries)"
 fi
 

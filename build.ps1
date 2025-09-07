@@ -10,7 +10,7 @@ Write-Host "Building Gophetch..." -ForegroundColor Green
 # Set build flags
 $ldflags = ""
 if ($Release) {
-    $ldflags = "-ldflags='-s -w'"
+    $ldflags = "-ldflags=`"-s -w`""
     Write-Host "Building in release mode (stripped binaries)" -ForegroundColor Yellow
 }
 

@@ -45,7 +45,7 @@ foreach ($platform in $Platforms) {
     
     # Build with release flags
     $OutputPath = "$ReleaseDir/gophetch-${Version}-${GOOS}-${GOARCH}$($Output.Substring(7))"
-    $BuildCmd = "go build -ldflags='-s -w' -o $OutputPath"
+    $BuildCmd = "go build -ldflags=`"-s -w`" -o $OutputPath"
     
     try {
         Invoke-Expression $BuildCmd
