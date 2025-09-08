@@ -20,6 +20,76 @@ A terminal-based system monitor with ASCII animation built in Go using Bubble Te
 - Color palette with animated wave effects
 - System metrics including CPU, memory, disk usage, and load average
 - Responsive terminal UI with proper cleanup
+- **Tab System**: Multi-tab interface with specialized information panels
+- **Interactive Navigation**: Keyboard-driven tab switching and list navigation
+
+## Tab System
+
+Gophetch features a comprehensive tab system that organizes system information into specialized panels for better usability and information density.
+
+### Available Tabs
+
+1. **Standard Tab** - Traditional system information display
+   - Operating system and architecture
+   - CPU, memory, and disk usage
+   - System uptime and process count
+   - Load average and runtime information
+
+2. **Network Tab** - Network connectivity and activity
+   - IP addresses (all interfaces)
+   - Active network connections count
+   - Listening ports and services
+   - Network interface statistics
+
+3. **Hardware Tab** - Hardware-specific information
+   - GPU information and driver details
+   - Temperature monitoring (where available)
+   - Fan speed readings (where available)
+   - Battery status and level (laptops/mobile devices)
+
+4. **Processes Tab** - Interactive process management
+   - Total process count
+   - Top processes by resource usage
+   - Interactive list with up/down navigation
+   - Process details (PID, CPU%, Memory usage)
+
+5. **Weather Tab** - Current weather and forecast
+   - Current weather conditions and temperature
+   - Today's detailed forecast with ASCII art
+   - Auto-detected location or manual location support
+   - Real-time weather data from wttr.in
+
+### Tab Navigation
+
+- **Tab/Shift+Tab** - Navigate between tabs
+- **Number keys (1-5)** - Jump directly to specific tabs
+- **Up/Down arrows or j/k** - Navigate within the Processes tab list
+- **q or Ctrl+C** - Exit application
+
+### Tab Configuration
+
+The tab system can be configured in `gophetch.json`:
+
+```json
+{
+  "enable_tabs": true,
+  "visible_tabs": ["standard", "network", "hardware", "processes", "weather"],
+  "default_tab": "standard",
+  "tab_order": ["standard", "network", "hardware", "processes", "weather"]
+}
+```
+
+- **enable_tabs**: Enable/disable the tab system (default: true)
+- **visible_tabs**: Array of tabs to show (can hide specific tabs)
+- **default_tab**: Which tab to show on startup
+- **tab_order**: Custom order for tab display
+
+### Performance Features
+
+- **Smart Caching**: Data is cached and updated at optimal intervals
+- **Efficient Updates**: Network and hardware data updates every 10 seconds
+- **Weather Caching**: Weather data updates every 30 seconds to respect API limits
+- **Responsive UI**: Smooth navigation and real-time updates
 
 ## Requirements
 
@@ -166,18 +236,50 @@ Gophetch now supports two animation formats:
 
 ## Controls
 
+### Basic Controls
 - `q` or `Ctrl+C` - Exit application
+
+### Tab System Controls
+- `Tab` - Switch to next tab
+- `Shift+Tab` - Switch to previous tab
+- `1-5` - Jump directly to specific tab (Standard, Network, Hardware, Processes, Weather)
+- `Up/Down arrows` or `j/k` - Navigate within the Processes tab list
 
 ## System Information Displayed
 
+### Standard Tab
 - Operating system and architecture
 - Username
-- CPU core count
+- CPU core count and usage
 - Memory allocation and garbage collection stats
 - Disk usage and permissions
 - Process count
 - Load average (estimated on Windows)
 - Runtime information (uptime, FPS, Go version)
+
+### Network Tab
+- IP addresses (all network interfaces)
+- Active network connections count
+- Listening ports and services
+- Network interface statistics
+
+### Hardware Tab
+- GPU information and driver details
+- Temperature monitoring (where available)
+- Fan speed readings (where available)
+- Battery status and level (laptops/mobile devices)
+
+### Processes Tab
+- Total process count
+- Top processes by resource usage
+- Interactive process list with navigation
+- Process details (PID, CPU%, Memory usage)
+
+### Weather Tab
+- Current weather conditions and temperature
+- Today's detailed forecast with ASCII art
+- Auto-detected location
+- Real-time weather data from wttr.in
 
 ## Future Enhancements
 
