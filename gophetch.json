@@ -13,5 +13,21 @@
   "static_mode": false,
   "hide_animation": false,
   "show_fps_counter": false,
-  "show_weather": false
+  "show_weather": false,
+  "enable_tabs": true,
+  "visible_tabs": [
+    "standard",
+    "network",
+    "hardware",
+    "processes",
+    "weather"
+  ],
+  "default_tab": "standard",
+  "tab_order": [
+    "standard",
+    "network",
+    "hardware",
+    "processes",
+    "weather"
+  ]
 }
