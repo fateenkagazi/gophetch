@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -25,6 +26,22 @@ import (
 type Frame struct {
 	Content string
 	Color   lipgloss.Color
+}
+
+// CastHeader represents the header of an asciinema .cast file
+type CastHeader struct {
+	Version   int               `json:"version"`
+	Width     int               `json:"width"`
+	Height    int               `json:"height"`
+	Timestamp int64             `json:"timestamp"`
+	Env       map[string]string `json:"env"`
+}
+
+// CastEvent represents a single event in an asciinema .cast file
+type CastEvent struct {
+	Timestamp float64 `json:"timestamp"`
+	EventType string  `json:"event_type"`
+	Data      string  `json:"data"`
 }
 
 // SystemInfo holds system information to display
@@ -114,6 +131,19 @@ var cloud = []string{
 }
 
 var rainChars = []rune{'\'', '`', '|', '.', '˙'}
+
+// Compiled regex patterns for better performance
+var (
+	// ANSI escape sequence patterns
+	ansiColorRegex       = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	ansiCursorRegex      = regexp.MustCompile(`\x1b\[[0-9]*[ABCDFGHK]`)
+	ansiClearRegex       = regexp.MustCompile(`\x1b\[[0-9]*[JK]`)
+	ansiComplexRegex     = regexp.MustCompile(`\x1b\[[?0-9;]*[hlnpqr]`)
+	ansiOSCRegex         = regexp.MustCompile(`\x1b\][0-9]*;[^\x07]*\x07`)
+	ansiPrivateRegex     = regexp.MustCompile(`\x1b\[[?0-9;]*[a-zA-Z]`)
+	ansiDeviceRegex      = regexp.MustCompile(`\x1b\[[0-9]*n`)
+	ansiApplicationRegex = regexp.MustCompile(`\x1b\[[?0-9;]*[hl]`)
+)
 
 // generateCloudWithRain creates a single cloud with rain animation
 func generateCloudWithRain(animated bool) []string {
@@ -1032,6 +1062,155 @@ func extractColor(line string) lipgloss.Color {
 	return lipgloss.Color("252")
 }
 
+// LoadFramesFromCastFile loads ASCII frames from an asciinema .cast file
+func LoadFramesFromCastFile(filename string) ([]Frame, error) {
+	fileInfo, err := os.Stat(filename)
+	if err != nil {
+		return nil, fmt.Errorf("cannot access file %s: %w", filename, err)
+	}
+
+	if fileInfo.IsDir() {
+		return nil, fmt.Errorf("%s is a directory, not a file", filename)
+	}
+
+	if fileInfo.Size() == 0 {
+		return nil, fmt.Errorf("file %s is empty", filename)
+	}
+
+	if fileInfo.Size() > 50*1024*1024 { // 50MB limit
+		return nil, fmt.Errorf("file %s is too large (>50MB)", filename)
+	}
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open file %s: %w", filename, err)
+	}
+	defer file.Close()
+
+	// Read the first line to get the header
+	scanner := bufio.NewScanner(file)
+	if !scanner.Scan() {
+		return nil, fmt.Errorf("file %s appears to be empty or invalid", filename)
+	}
+
+	headerLine := scanner.Text()
+	var header CastHeader
+	if err := json.Unmarshal([]byte(headerLine), &header); err != nil {
+		return nil, fmt.Errorf("invalid .cast file header: %w", err)
+	}
+
+	// Parse events and extract frames
+	var frames []Frame
+	var currentContent strings.Builder
+	var lastTimestamp float64
+	frameInterval := 0.1 // Extract frame every 100ms by default
+
+	lineCount := 0
+	for scanner.Scan() {
+		line := scanner.Text()
+		lineCount++
+
+		// Parse event line as JSON array
+		var eventArray []interface{}
+		if err := json.Unmarshal([]byte(line), &eventArray); err != nil {
+			continue // Skip invalid lines
+		}
+
+		// Check if it's a valid event array [timestamp, eventType, data]
+		if len(eventArray) != 3 {
+			continue // Skip invalid event arrays
+		}
+
+		// Extract event data
+		timestamp, ok1 := eventArray[0].(float64)
+		eventType, ok2 := eventArray[1].(string)
+		data, ok3 := eventArray[2].(string)
+
+		if !ok1 || !ok2 || !ok3 {
+			continue // Skip if we can't extract the data properly
+		}
+
+		// Only process output events
+		if eventType != "o" {
+			continue
+		}
+
+		// Accumulate content first
+		currentContent.WriteString(data)
+
+		// Check if we should create a new frame based on time interval
+		if timestamp-lastTimestamp >= frameInterval {
+			if currentContent.Len() > 0 {
+				// Process ANSI escape sequences and create frame
+				processedContent := processANSISequences(currentContent.String())
+
+				// Accept frames with meaningful content
+				if len(strings.TrimSpace(processedContent)) > 5 {
+					frames = append(frames, Frame{
+						Content: processedContent,
+						Color:   lipgloss.Color("252"), // Default color
+					})
+				}
+				currentContent.Reset()
+			}
+			lastTimestamp = timestamp
+		}
+
+		if lineCount > 100000 {
+			return nil, fmt.Errorf("file %s has too many lines (>100,000)", filename)
+		}
+	}
+
+	// Add the last frame if there's content
+	if currentContent.Len() > 0 {
+		processedContent := processANSISequences(currentContent.String())
+		if len(strings.TrimSpace(processedContent)) > 5 {
+			frames = append(frames, Frame{
+				Content: processedContent,
+				Color:   lipgloss.Color("252"),
+			})
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading file %s: %w", filename, err)
+	}
+
+	if len(frames) == 0 {
+		return nil, fmt.Errorf("no frames found in .cast file %s", filename)
+	}
+
+	if len(frames) > 10000 {
+		return nil, fmt.Errorf("too many frames in .cast file %s (%d > 10,000)", filename, len(frames))
+	}
+
+	return frames, nil
+}
+
+// processANSISequences processes ANSI escape sequences and returns clean text
+func processANSISequences(input string) string {
+	// Use regex patterns for efficient ANSI sequence removal
+	result := input
+
+	// Remove all ANSI escape sequences using regex patterns
+	result = ansiColorRegex.ReplaceAllString(result, "")       // Color codes
+	result = ansiCursorRegex.ReplaceAllString(result, "")      // Cursor movement
+	result = ansiClearRegex.ReplaceAllString(result, "")       // Clear screen/line
+	result = ansiComplexRegex.ReplaceAllString(result, "")     // Complex sequences
+	result = ansiOSCRegex.ReplaceAllString(result, "")         // Operating System Command
+	result = ansiPrivateRegex.ReplaceAllString(result, "")     // Private sequences
+	result = ansiDeviceRegex.ReplaceAllString(result, "")      // Device control
+	result = ansiApplicationRegex.ReplaceAllString(result, "") // Application sequences
+
+	// Remove any remaining escape sequences that might have been missed
+	result = strings.ReplaceAll(result, "\u001b[", "")
+
+	// Remove bell character
+	result = strings.ReplaceAll(result, "\u0007", "")
+
+	return result
+}
+
 // generateStaticColorPalette creates a static color palette for static mode
 func generateStaticColorPalette() string {
 	var palette strings.Builder
@@ -1173,11 +1352,18 @@ func main() {
 	// Load frames based on config or command line arguments
 	if len(os.Args) > 1 {
 		// Command line arguments override config
-		if strings.Contains(os.Args[1], ".txt") || strings.Contains(os.Args[1], ".frames") {
+		if strings.Contains(os.Args[1], ".txt") || strings.Contains(os.Args[1], ".frames") || strings.Contains(os.Args[1], ".cast") {
 			// Load frames from file
 			filename := os.Args[1]
 			fmt.Printf("Loading frames from file: %s\n", filename)
-			frames, err = LoadFramesFromFile(filename)
+
+			// Detect file type and use appropriate parser
+			if strings.HasSuffix(filename, ".cast") {
+				frames, err = LoadFramesFromCastFile(filename)
+			} else {
+				frames, err = LoadFramesFromFile(filename)
+			}
+
 			if err != nil {
 				fmt.Printf("Error loading file: %v\n", err)
 				fmt.Printf("Falling back to rain animation...\n")
@@ -1202,7 +1388,14 @@ func main() {
 		// Use config file setting
 		if config.FrameFile != "default" && config.FrameFile != "" {
 			fmt.Printf("Loading frames from config file: %s\n", config.FrameFile)
-			frames, err = LoadFramesFromFile(config.FrameFile)
+
+			// Detect file type and use appropriate parser
+			if strings.HasSuffix(config.FrameFile, ".cast") {
+				frames, err = LoadFramesFromCastFile(config.FrameFile)
+			} else {
+				frames, err = LoadFramesFromFile(config.FrameFile)
+			}
+
 			if err != nil {
 				fmt.Printf("Error loading config frame file: %v\n", err)
 				fmt.Printf("Falling back to rain animation...\n")

@@ -120,6 +120,50 @@ Custom ASCII frames can be loaded from text files. Each frame is separated by `-
 
 An example frame file (`example-frames.txt`) is included with a simple character animation. You can use it as a starting point for your own custom animations.
 
+## Asciinema .cast File Support
+
+Gophetch now supports asciinema `.cast` files, allowing you to use terminal recordings as animations. This opens up a world of possibilities for creating dynamic, realistic terminal animations.
+
+### Creating .cast Files
+
+You can create `.cast` files using the `asciinema` tool:
+
+```bash
+# Record a terminal session
+asciinema rec my-animation.cast
+
+# Play it back to test
+asciinema play my-animation.cast
+
+# Use it with Gophetch
+./gophetch my-animation.cast
+```
+
+### .cast File Features
+
+- **Automatic frame extraction**: Gophetch automatically extracts frames from the continuous terminal output
+- **ANSI sequence processing**: Handles terminal colors, cursor movements, and formatting using regex-based processing
+- **Timing preservation**: Maintains the original timing relationships from the recording
+- **Standard format**: Works with any asciinema-compatible recording
+- **Cross-platform**: Works on all supported platforms (Windows, Linux, macOS, Android/Termux)
+
+### Supported File Formats
+
+Gophetch now supports two animation formats:
+
+1. **Custom Frame Files** (`.txt`, `.frames`): Traditional ASCII art frames separated by `---FRAME---`
+2. **Asciinema .cast Files** (`.cast`): Terminal recordings with automatic frame extraction
+
+### Example Use Cases
+
+- Terminal demos and tutorials
+- Command-line tool showcases
+- Interactive script demonstrations
+- Real-time data visualization
+- Terminal-based games and applications
+- Live coding sessions
+- System monitoring displays
+
 ## Controls
 
 - `q` or `Ctrl+C` - Exit application
@@ -138,6 +182,8 @@ An example frame file (`example-frames.txt`) is included with a simple character
 ## Future Enhancements
 
 - Change default config location to OS appropriate locations (e.g., `~/.config/gophetch/` on Linux/macOS, `%APPDATA%\gophetch\` on Windows)
+- Enhanced ANSI sequence processing for better .cast file rendering
+- Support for custom frame extraction intervals in .cast files
 
 ## License
 
