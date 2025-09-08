@@ -58,7 +58,6 @@ type Config struct {
 	// Frame / animation settings
 	FrameFile     string `json:"frame_file"`
 	LoopAnimation bool   `json:"loop_animation"`
-	CenterContent bool   `json:"center_content"`
 
 	// Output mode
 	StaticMode    bool `json:"static_mode"`
@@ -117,7 +116,7 @@ var cloud = []string{
 var rainChars = []rune{'\'', '`', '|', '.', '˙'}
 
 // generateCloudWithRain creates a single cloud with rain animation
-func generateCloudWithRain() []string {
+func generateCloudWithRain(animated bool) []string {
 	lines := make([]string, 8) // Extended to 8 lines for better height matching
 
 	// cloud lines
@@ -131,8 +130,15 @@ func generateCloudWithRain() []string {
 	for i := 2; i < 8; i++ {
 		line := ""
 		for j := 0; j < width; j++ {
-			if rand.Float64() < 0.6 {
+			if animated && rand.Float64() < 0.6 {
 				line += blue + string(rainChars[rand.Intn(len(rainChars))]) + reset
+			} else if !animated {
+				// Static rain - use a fixed pattern
+				if (i+j)%3 == 0 {
+					line += blue + string(rainChars[0]) + reset
+				} else {
+					line += " "
+				}
 			} else {
 				line += " "
 			}
@@ -270,18 +276,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Only cycle through frames if we have frames loaded
 		// For rain animation, we don't need to cycle frames
 		if len(m.frames) > 0 {
-			m.currentFrame = (m.currentFrame + 1) % len(m.frames)
+			if m.config.LoopAnimation {
+				m.currentFrame = (m.currentFrame + 1) % len(m.frames)
+			} else {
+				// Don't loop - stay on last frame
+				if m.currentFrame < len(m.frames)-1 {
+					m.currentFrame++
+				}
+			}
 		}
 		m.mutex.Unlock()
+
+		// In static mode, don't continue ticking after first update
+		if m.config.StaticMode {
+			return m, nil
+		}
 		return m, tickEvery(m.frameRate)
 
 	case sysInfoMsg:
 		m.mutex.Lock()
 		m.sysInfo = SystemInfo(msg)
 		m.mutex.Unlock()
-		return m, tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
-			return sysInfoMsg(GetSystemInfo())
-		})
+		// Only schedule next system info update if not in static mode
+		if !m.config.StaticMode {
+			return m, tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+				return sysInfoMsg(GetSystemInfo())
+			})
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -296,39 +318,72 @@ func (m Model) View() string {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	// Generate rain animation
-	rainAnimation := generateCloudWithRain()
-	animationPanel := strings.Join(rainAnimation, "\n")
-
 	// Create system info panel
 	sysInfoPanel := m.renderSystemInfo()
 
-	// Calculate actual animation width (including padding)
-	actualAnimationWidth := len(rainAnimation[0]) + 4 // +4 for padding
-	infoWidth := m.width - actualAnimationWidth - 3   // -3 for spacing
+	var content string
+	if m.config.HideAnimation {
+		// Hide animation - just show system info
+		content = lipgloss.NewStyle().
+			Width(m.width).
+			Padding(1, 2).
+			Render(sysInfoPanel)
+	} else {
+		var animationPanel string
+		var actualAnimationWidth int
 
-	// Style the panels without borders
-	animationStyled := lipgloss.NewStyle().
-		Width(actualAnimationWidth).
-		Height(10). // Reduced to match the 8-line animation + padding
-		Padding(1, 2).
-		Render(animationPanel)
+		if len(m.frames) > 0 {
+			// Use custom frames
+			if m.currentFrame < len(m.frames) {
+				animationPanel = m.frames[m.currentFrame].Content
+			} else {
+				animationPanel = m.frames[0].Content // Fallback to first frame
+			}
+			// Calculate width from the actual frame content
+			lines := strings.Split(animationPanel, "\n")
+			if len(lines) > 0 {
+				actualAnimationWidth = len(lines[0]) + 4 // +4 for padding
+			} else {
+				actualAnimationWidth = 20 // Default width
+			}
+		} else {
+			// Generate rain animation
+			rainAnimation := generateCloudWithRain(!m.config.StaticMode)
+			animationPanel = strings.Join(rainAnimation, "\n")
+			actualAnimationWidth = len(rainAnimation[0]) + 4 // +4 for padding
+		}
 
-	infoStyled := lipgloss.NewStyle().
-		Width(infoWidth).
-		Padding(1, 2).
-		Render(sysInfoPanel)
+		infoWidth := m.width - actualAnimationWidth - 3 // -3 for spacing
 
-	// Join panels side by side with proper spacing
-	content := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		animationStyled,
-		lipgloss.NewStyle().Width(3).Render(""), // 3-space gap
-		infoStyled,
-	)
+		// Style the panels without borders
+		animationStyled := lipgloss.NewStyle().
+			Width(actualAnimationWidth).
+			Height(10). // Reduced to match the 8-line animation + padding
+			Padding(1, 2).
+			Render(animationPanel)
+
+		infoStyled := lipgloss.NewStyle().
+			Width(infoWidth).
+			Padding(1, 2).
+			Render(sysInfoPanel)
+
+		// Join panels side by side with proper spacing
+		content = lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			animationStyled,
+			lipgloss.NewStyle().Width(3).Render(""), // 3-space gap
+			infoStyled,
+		)
+	}
 
 	// Generate color palette with animation (will update on each tick)
-	colorPalette := generateColorPalette(m.startTime)
+	var colorPalette string
+	if m.config.StaticMode {
+		// In static mode, use a static color palette
+		colorPalette = generateStaticColorPalette()
+	} else {
+		colorPalette = generateColorPalette(m.startTime)
+	}
 
 	// Add title and controls
 	title := titleStyle.Render("Gophetch - System Monitor")
@@ -977,6 +1032,41 @@ func extractColor(line string) lipgloss.Color {
 	return lipgloss.Color("252")
 }
 
+// generateStaticColorPalette creates a static color palette for static mode
+func generateStaticColorPalette() string {
+	var palette strings.Builder
+
+	// First row - static colors
+	colors1 := []lipgloss.Color{"1", "2", "3", "4", "5", "6", "7", "8"}
+	for _, color := range colors1 {
+		palette.WriteString(lipgloss.NewStyle().
+			Background(color).
+			Render("   "))
+	}
+
+	palette.WriteString("\n")
+
+	// Second row - static colors
+	colors2 := []lipgloss.Color{"9", "10", "11", "12", "13", "14", "15", "16"}
+	for _, color := range colors2 {
+		palette.WriteString(lipgloss.NewStyle().
+			Background(color).
+			Render("   "))
+	}
+
+	// Create a properly bordered palette using lipgloss
+	paletteContent := palette.String()
+
+	// Use lipgloss to create a bordered box
+	borderedPalette := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(0, 1).
+		Render(paletteContent)
+
+	return borderedPalette
+}
+
 // getWeather gets weather information from wttr.in
 func getWeather() string {
 	client := &http.Client{
@@ -1023,7 +1113,6 @@ func getDefaultConfig() Config {
 		// Frame / animation settings
 		FrameFile:     "default",
 		LoopAnimation: true,
-		CenterContent: true,
 
 		// Output mode
 		StaticMode:    false,

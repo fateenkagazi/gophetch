@@ -93,7 +93,6 @@ Gophetch supports a JSON configuration file (`gophetch.json`) that is automatica
   "show_hostname": true,
   "frame_file": "default",
   "loop_animation": true,
-  "center_content": true,
   "static_mode": false,
   "hide_animation": false,
   "show_fps_counter": false,
@@ -114,7 +113,6 @@ Gophetch supports a JSON configuration file (`gophetch.json`) that is automatica
 - **show_hostname**: Display username (default: true)
 - **frame_file**: Path to custom ASCII frames file (default: "default")
 - **loop_animation**: Loop animation frames (default: true)
-- **center_content**: Center ASCII art (default: true)
 - **static_mode**: One-shot info dump like Neofetch (default: false)
 - **hide_animation**: Skip animation even if frames exist (default: false)
 - **show_fps_counter**: Show FPS overlay (default: false)
@@ -139,6 +137,8 @@ Custom ASCII frames can be loaded from text files. Each frame is separated by `-
 │  └───────┘  │
 └─────────────┘
 ```
+
+An example frame file (`example-frames.txt`) is included with a simple character animation. You can use it as a starting point for your own custom animations.
 
 ## Controls
 

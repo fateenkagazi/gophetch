@@ -10,7 +10,6 @@
   "show_hostname": true,
   "frame_file": "default",
   "loop_animation": true,
-  "center_content": true,
   "static_mode": false,
   "hide_animation": false,
   "show_fps_counter": false,
