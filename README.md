@@ -23,8 +23,8 @@ A terminal-based system monitor with ASCII animation built in Go using Bubble Te
 
 ## Requirements
 
-- Go 1.21 or later
 - Terminal with ANSI color support
+- Go 1.21 or later (only required for building from source)
 
 ## Installation
 
