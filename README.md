@@ -86,10 +86,13 @@ The tab system can be configured in `gophetch.json`:
 
 ### Performance Features
 
+- **Background Data Fetching**: All system calls run in background goroutines to keep UI responsive
+- **Non-blocking Updates**: UI renders immediately while data loads progressively in background
 - **Smart Caching**: Data is cached and updated at optimal intervals
 - **Efficient Updates**: Network and hardware data updates every 10 seconds
 - **Weather Caching**: Weather data updates every 30 seconds to respect API limits
-- **Responsive UI**: Smooth navigation and real-time updates
+- **Loading Indicators**: Visual feedback shows "(Loading...)" while data is being fetched
+- **Responsive UI**: Smooth navigation and real-time updates without blocking
 
 ## Requirements
 

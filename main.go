@@ -154,6 +154,12 @@ type DataCache struct {
 	weatherInfo    WeatherInfo
 	lastUpdate     time.Time
 	updateInterval time.Duration
+
+	// Loading states
+	networkLoading  bool
+	hardwareLoading bool
+	processLoading  bool
+	weatherLoading  bool
 }
 
 // NewDataCache creates a new data cache
@@ -168,41 +174,38 @@ func (c *DataCache) ShouldUpdate() bool {
 	return time.Since(c.lastUpdate) > c.updateInterval
 }
 
-// UpdateNetworkInfo updates network info if needed
+// Non-blocking methods that return cached data immediately
 func (c *DataCache) UpdateNetworkInfo() NetworkInfo {
-	if c.ShouldUpdate() || c.networkInfo.IPAddresses == nil {
-		c.networkInfo = GetNetworkInfo()
-		c.lastUpdate = time.Now()
-	}
 	return c.networkInfo
 }
 
-// UpdateHardwareInfo updates hardware info if needed
 func (c *DataCache) UpdateHardwareInfo() HardwareInfo {
-	if c.ShouldUpdate() || c.hardwareInfo.GPUInfo == "" {
-		c.hardwareInfo = GetHardwareInfo()
-		c.lastUpdate = time.Now()
-	}
 	return c.hardwareInfo
 }
 
-// UpdateProcessInfo updates process info if needed
 func (c *DataCache) UpdateProcessInfo() ProcessInfo {
-	if c.ShouldUpdate() || c.processInfo.TotalProcesses == 0 {
-		c.processInfo = GetProcessInfo()
-		c.lastUpdate = time.Now()
-	}
 	return c.processInfo
 }
 
-// UpdateWeatherInfo updates weather info if needed (less frequent)
 func (c *DataCache) UpdateWeatherInfo() WeatherInfo {
-	// Weather updates less frequently (every 30 seconds) or if not initialized
-	if time.Since(c.lastUpdate) > 30*time.Second || c.weatherInfo.Current == "" {
-		c.weatherInfo = GetWeatherInfo()
-		c.lastUpdate = time.Now()
-	}
 	return c.weatherInfo
+}
+
+// Methods to check if we should fetch new data
+func (c *DataCache) ShouldFetchNetworkInfo() bool {
+	return !c.networkLoading && (time.Since(c.lastUpdate) > c.updateInterval || len(c.networkInfo.IPAddresses) == 0)
+}
+
+func (c *DataCache) ShouldFetchHardwareInfo() bool {
+	return !c.hardwareLoading && (time.Since(c.lastUpdate) > c.updateInterval || c.hardwareInfo.GPUInfo == "")
+}
+
+func (c *DataCache) ShouldFetchProcessInfo() bool {
+	return !c.processLoading && (time.Since(c.lastUpdate) > c.updateInterval || c.processInfo.TotalProcesses == 0)
+}
+
+func (c *DataCache) ShouldFetchWeatherInfo() bool {
+	return !c.weatherLoading && (time.Since(c.lastUpdate) > 30*time.Second || c.weatherInfo.Current == "")
 }
 
 // Config holds all configuration options
@@ -429,6 +432,10 @@ func generateColorPalette(startTime time.Time) string {
 // Messages for Bubble Tea
 type tickMsg time.Time
 type sysInfoMsg SystemInfo
+type networkInfoMsg NetworkInfo
+type hardwareInfoMsg HardwareInfo
+type processInfoMsg ProcessInfo
+type weatherInfoMsg WeatherInfo
 
 // Commands
 func tickEvery(d time.Duration) tea.Cmd {
@@ -440,6 +447,30 @@ func tickEvery(d time.Duration) tea.Cmd {
 func updateSysInfo() tea.Cmd {
 	return func() tea.Msg {
 		return sysInfoMsg(GetSystemInfo())
+	}
+}
+
+func fetchNetworkInfoBackground() tea.Cmd {
+	return func() tea.Msg {
+		return networkInfoMsg(GetNetworkInfo())
+	}
+}
+
+func fetchHardwareInfoBackground() tea.Cmd {
+	return func() tea.Msg {
+		return hardwareInfoMsg(GetHardwareInfo())
+	}
+}
+
+func fetchProcessInfoBackground() tea.Cmd {
+	return func() tea.Msg {
+		return processInfoMsg(GetProcessInfo())
+	}
+}
+
+func fetchWeatherInfoBackground() tea.Cmd {
+	return func() tea.Msg {
+		return weatherInfoMsg(GetWeatherInfo())
 	}
 }
 
@@ -566,6 +597,44 @@ func (tm *TabManager) RenderTabBar(width int) string {
 func (tm *TabManager) Update(msg tea.Msg) tea.Cmd {
 	var cmds []tea.Cmd
 
+	// Handle background data updates
+	switch msg := msg.(type) {
+	case networkInfoMsg:
+		tm.cache.networkInfo = NetworkInfo(msg)
+		tm.cache.networkLoading = false
+		tm.cache.lastUpdate = time.Now()
+	case hardwareInfoMsg:
+		tm.cache.hardwareInfo = HardwareInfo(msg)
+		tm.cache.hardwareLoading = false
+		tm.cache.lastUpdate = time.Now()
+	case processInfoMsg:
+		tm.cache.processInfo = ProcessInfo(msg)
+		tm.cache.processLoading = false
+		tm.cache.lastUpdate = time.Now()
+	case weatherInfoMsg:
+		tm.cache.weatherInfo = WeatherInfo(msg)
+		tm.cache.weatherLoading = false
+		tm.cache.lastUpdate = time.Now()
+	case sysInfoMsg:
+		// When system info updates, check if we need to fetch other data in background
+		if tm.cache.ShouldFetchNetworkInfo() {
+			tm.cache.networkLoading = true
+			cmds = append(cmds, fetchNetworkInfoBackground())
+		}
+		if tm.cache.ShouldFetchHardwareInfo() {
+			tm.cache.hardwareLoading = true
+			cmds = append(cmds, fetchHardwareInfoBackground())
+		}
+		if tm.cache.ShouldFetchProcessInfo() {
+			tm.cache.processLoading = true
+			cmds = append(cmds, fetchProcessInfoBackground())
+		}
+		if tm.cache.ShouldFetchWeatherInfo() {
+			tm.cache.weatherLoading = true
+			cmds = append(cmds, fetchWeatherInfoBackground())
+		}
+	}
+
 	// Update all tabs
 	for i, tab := range tm.tabs {
 		updatedTab, cmd := tab.Update(msg, tm.cache)
@@ -679,9 +748,12 @@ func (t *NetworkTab) Init() tea.Cmd {
 }
 
 func (t *NetworkTab) Update(msg tea.Msg, cache *DataCache) (Tab, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
+	case networkInfoMsg:
+		// Update network info when background fetch completes
+		t.networkInfo = NetworkInfo(msg)
 	case sysInfoMsg:
-		// Update network info when system info updates
+		// Don't block here, just use cached data
 		t.networkInfo = cache.UpdateNetworkInfo()
 	}
 	return t, nil
@@ -691,6 +763,9 @@ func (t *NetworkTab) Render(width, height int, sysInfo SystemInfo, cache *DataCa
 	var info strings.Builder
 
 	info.WriteString(infoStyle.Render("Network Information"))
+	if cache.networkLoading {
+		info.WriteString(" " + lipgloss.NewStyle().Foreground(lipgloss.Color("yellow")).Render("(Loading...)"))
+	}
 	info.WriteString("\n")
 	info.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("─────────────────────"))
 	info.WriteString("\n\n")
@@ -700,6 +775,10 @@ func (t *NetworkTab) Render(width, height int, sysInfo SystemInfo, cache *DataCa
 		info.WriteString(fmt.Sprintf("%s %s\n",
 			infoStyle.Render("IP Addresses:"),
 			valueStyle.Render(strings.Join(t.networkInfo.IPAddresses, ", "))))
+	} else if cache.networkLoading {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("IP Addresses:"),
+			valueStyle.Render("Loading...")))
 	} else {
 		info.WriteString(fmt.Sprintf("%s %s\n",
 			infoStyle.Render("IP Addresses:"),
@@ -716,15 +795,25 @@ func (t *NetworkTab) Render(width, height int, sysInfo SystemInfo, cache *DataCa
 		valueStyle.Render(t.networkInfo.BandwidthOut)))
 
 	// Connections
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("Active Connections:"),
-		valueStyle.Render(fmt.Sprintf("%d", t.networkInfo.Connections))))
+	if cache.networkLoading && t.networkInfo.Connections == 0 {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Active Connections:"),
+			valueStyle.Render("Loading...")))
+	} else {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Active Connections:"),
+			valueStyle.Render(fmt.Sprintf("%d", t.networkInfo.Connections))))
+	}
 
 	// Active Ports
 	if len(t.networkInfo.ActivePorts) > 0 {
 		info.WriteString(fmt.Sprintf("%s %s\n",
 			infoStyle.Render("Active Ports:"),
 			valueStyle.Render(strings.Join(t.networkInfo.ActivePorts, ", "))))
+	} else if cache.networkLoading {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Active Ports:"),
+			valueStyle.Render("Loading...")))
 	} else {
 		info.WriteString(fmt.Sprintf("%s %s\n",
 			infoStyle.Render("Active Ports:"),
@@ -750,9 +839,12 @@ func (t *HardwareTab) Init() tea.Cmd {
 }
 
 func (t *HardwareTab) Update(msg tea.Msg, cache *DataCache) (Tab, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
+	case hardwareInfoMsg:
+		// Update hardware info when background fetch completes
+		t.hardwareInfo = HardwareInfo(msg)
 	case sysInfoMsg:
-		// Update hardware info when system info updates
+		// Don't block here, just use cached data
 		t.hardwareInfo = cache.UpdateHardwareInfo()
 	}
 	return t, nil
@@ -762,34 +854,87 @@ func (t *HardwareTab) Render(width, height int, sysInfo SystemInfo, cache *DataC
 	var info strings.Builder
 
 	info.WriteString(infoStyle.Render("Hardware Information"))
+	if cache.hardwareLoading {
+		info.WriteString(" " + lipgloss.NewStyle().Foreground(lipgloss.Color("yellow")).Render("(Loading...)"))
+	}
 	info.WriteString("\n")
 	info.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("─────────────────────"))
 	info.WriteString("\n\n")
 
 	// GPU Information
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("GPU:"),
-		valueStyle.Render(t.hardwareInfo.GPUInfo)))
+	if t.hardwareInfo.GPUInfo != "" && t.hardwareInfo.GPUInfo != "GPU information not available" {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("GPU:"),
+			valueStyle.Render(t.hardwareInfo.GPUInfo)))
+	} else if cache.hardwareLoading {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("GPU:"),
+			valueStyle.Render("Loading...")))
+	} else {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("GPU:"),
+			valueStyle.Render("N/A")))
+	}
 
 	// Temperature
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("Temperature:"),
-		valueStyle.Render(t.hardwareInfo.Temperature)))
+	if t.hardwareInfo.Temperature != "" && t.hardwareInfo.Temperature != "Temperature not available" {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Temperature:"),
+			valueStyle.Render(t.hardwareInfo.Temperature)))
+	} else if cache.hardwareLoading {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Temperature:"),
+			valueStyle.Render("Loading...")))
+	} else {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Temperature:"),
+			valueStyle.Render("N/A")))
+	}
 
 	// Fan Speed
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("Fan Speed:"),
-		valueStyle.Render(t.hardwareInfo.FanSpeed)))
+	if t.hardwareInfo.FanSpeed != "" && t.hardwareInfo.FanSpeed != "Fan speed not available" {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Fan Speed:"),
+			valueStyle.Render(t.hardwareInfo.FanSpeed)))
+	} else if cache.hardwareLoading {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Fan Speed:"),
+			valueStyle.Render("Loading...")))
+	} else {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Fan Speed:"),
+			valueStyle.Render("N/A")))
+	}
 
 	// Battery Status
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("Battery Status:"),
-		valueStyle.Render(t.hardwareInfo.BatteryStatus)))
+	if t.hardwareInfo.BatteryStatus != "" && t.hardwareInfo.BatteryStatus != "N/A" {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Battery Status:"),
+			valueStyle.Render(t.hardwareInfo.BatteryStatus)))
+	} else if cache.hardwareLoading {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Battery Status:"),
+			valueStyle.Render("Loading...")))
+	} else {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Battery Status:"),
+			valueStyle.Render("N/A")))
+	}
 
 	// Battery Level
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("Battery Level:"),
-		valueStyle.Render(t.hardwareInfo.BatteryLevel)))
+	if t.hardwareInfo.BatteryLevel != "" && t.hardwareInfo.BatteryLevel != "N/A" {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Battery Level:"),
+			valueStyle.Render(t.hardwareInfo.BatteryLevel)))
+	} else if cache.hardwareLoading {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Battery Level:"),
+			valueStyle.Render("Loading...")))
+	} else {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Battery Level:"),
+			valueStyle.Render("N/A")))
+	}
 
 	return info.String()
 }
@@ -833,9 +978,9 @@ func (t *ProcessesTab) Update(msg tea.Msg, cache *DataCache) (Tab, tea.Cmd) {
 		// Update list size when window resizes
 		t.processList.SetWidth(msg.Width - 4)
 		t.processList.SetHeight(msg.Height - 10)
-	case sysInfoMsg:
-		// Update process info when system info updates
-		t.processInfo = cache.UpdateProcessInfo()
+	case processInfoMsg:
+		// Update process info when background fetch completes
+		t.processInfo = ProcessInfo(msg)
 
 		// Update the list items
 		items := []list.Item{}
@@ -843,6 +988,9 @@ func (t *ProcessesTab) Update(msg tea.Msg, cache *DataCache) (Tab, tea.Cmd) {
 			items = append(items, ProcessItem{process: process})
 		}
 		t.processList.SetItems(items)
+	case sysInfoMsg:
+		// Don't block here, just use cached data
+		t.processInfo = cache.UpdateProcessInfo()
 	default:
 		// Let the list handle its own updates
 		t.processList, cmd = t.processList.Update(msg)
@@ -855,14 +1003,27 @@ func (t *ProcessesTab) Render(width, height int, sysInfo SystemInfo, cache *Data
 	var info strings.Builder
 
 	info.WriteString(infoStyle.Render("Process Information"))
+	if cache.processLoading {
+		info.WriteString(" " + lipgloss.NewStyle().Foreground(lipgloss.Color("yellow")).Render("(Loading...)"))
+	}
 	info.WriteString("\n")
 	info.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("─────────────────────"))
 	info.WriteString("\n\n")
 
 	// Total processes
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("Total Processes:"),
-		valueStyle.Render(fmt.Sprintf("%d", t.processInfo.TotalProcesses))))
+	if t.processInfo.TotalProcesses > 0 {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Total Processes:"),
+			valueStyle.Render(fmt.Sprintf("%d", t.processInfo.TotalProcesses))))
+	} else if cache.processLoading {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Total Processes:"),
+			valueStyle.Render("Loading...")))
+	} else {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Total Processes:"),
+			valueStyle.Render("N/A")))
+	}
 
 	info.WriteString("\n")
 
@@ -870,7 +1031,14 @@ func (t *ProcessesTab) Render(width, height int, sysInfo SystemInfo, cache *Data
 	t.processList.SetWidth(width - 4)
 	t.processList.SetHeight(height - 15) // More space for header
 
-	info.WriteString(t.processList.View())
+	if cache.processLoading && len(t.processInfo.TopProcesses) == 0 {
+		loadingMsg := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("yellow")).
+			Render("Loading process list...")
+		info.WriteString(loadingMsg)
+	} else {
+		info.WriteString(t.processList.View())
+	}
 
 	return info.String()
 }
@@ -891,9 +1059,12 @@ func (t *WeatherTab) Init() tea.Cmd {
 }
 
 func (t *WeatherTab) Update(msg tea.Msg, cache *DataCache) (Tab, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
+	case weatherInfoMsg:
+		// Update weather info when background fetch completes
+		t.weatherInfo = WeatherInfo(msg)
 	case sysInfoMsg:
-		// Update weather info when system info updates
+		// Don't block here, just use cached data
 		t.weatherInfo = cache.UpdateWeatherInfo()
 	}
 	return t, nil
@@ -903,14 +1074,27 @@ func (t *WeatherTab) Render(width, height int, sysInfo SystemInfo, cache *DataCa
 	var info strings.Builder
 
 	info.WriteString(infoStyle.Render("Weather Information"))
+	if cache.weatherLoading {
+		info.WriteString(" " + lipgloss.NewStyle().Foreground(lipgloss.Color("yellow")).Render("(Loading...)"))
+	}
 	info.WriteString("\n")
 	info.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("─────────────────────"))
 	info.WriteString("\n\n")
 
 	// Current weather
-	info.WriteString(fmt.Sprintf("%s %s\n",
-		infoStyle.Render("Current:"),
-		valueStyle.Render(t.weatherInfo.Current)))
+	if t.weatherInfo.Current != "" && !strings.Contains(t.weatherInfo.Current, "unavailable") && !strings.Contains(t.weatherInfo.Current, "error") {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Current:"),
+			valueStyle.Render(t.weatherInfo.Current)))
+	} else if cache.weatherLoading {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Current:"),
+			valueStyle.Render("Loading...")))
+	} else {
+		info.WriteString(fmt.Sprintf("%s %s\n",
+			infoStyle.Render("Current:"),
+			valueStyle.Render("N/A")))
+	}
 
 	// Location
 	info.WriteString(fmt.Sprintf("%s %s\n",
@@ -933,6 +1117,8 @@ func (t *WeatherTab) Render(width, height int, sysInfo SystemInfo, cache *DataCa
 			info.WriteString(fmt.Sprintf("%s\n", valueStyle.Render(day)))
 			info.WriteString("\n")
 		}
+	} else if cache.weatherLoading {
+		info.WriteString(valueStyle.Render("Loading forecast...\n"))
 	} else {
 		info.WriteString(valueStyle.Render("No forecast data available\n"))
 	}
@@ -947,6 +1133,17 @@ func (m Model) Init() tea.Cmd {
 	// Initialize tab manager if tabs are enabled
 	if m.config.EnableTabs && m.tabManager != nil {
 		cmds = append(cmds, m.tabManager.Init())
+
+		// Start background data fetching immediately (non-blocking)
+		m.tabManager.cache.networkLoading = true
+		m.tabManager.cache.hardwareLoading = true
+		m.tabManager.cache.processLoading = true
+		m.tabManager.cache.weatherLoading = true
+
+		cmds = append(cmds, fetchNetworkInfoBackground())
+		cmds = append(cmds, fetchHardwareInfoBackground())
+		cmds = append(cmds, fetchProcessInfoBackground())
+		cmds = append(cmds, fetchWeatherInfoBackground())
 	}
 
 	// Add standard commands
@@ -1060,6 +1257,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}),
 				tabCmd,
 			)
+		}
+		return m, tabCmd
+
+	case networkInfoMsg, hardwareInfoMsg, processInfoMsg, weatherInfoMsg:
+		// Let tab manager handle these background data updates
+		var tabCmd tea.Cmd
+		if m.config.EnableTabs && m.tabManager != nil {
+			tabCmd = m.tabManager.Update(msg)
 		}
 		return m, tabCmd
 	}
