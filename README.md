@@ -80,26 +80,6 @@ The project includes build scripts for different platforms:
 
 Gophetch supports a JSON configuration file (`gophetch.json`) that is automatically created on first run. You can customize all display options:
 
-```json
-{
-  "fps": 5,
-  "color_scheme": "blue",
-  "show_cpu": true,
-  "show_memory": true,
-  "show_disk": true,
-  "show_uptime": true,
-  "show_kernel": true,
-  "show_os": true,
-  "show_hostname": true,
-  "frame_file": "default",
-  "loop_animation": true,
-  "static_mode": false,
-  "hide_animation": false,
-  "show_fps_counter": false,
-  "show_weather": false
-}
-```
-
 ### Configuration Options
 
 - **fps**: Animation frame rate (default: 5)
