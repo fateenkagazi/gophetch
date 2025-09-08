@@ -155,10 +155,9 @@ An example frame file (`example-frames.txt`) is included with a simple character
 - Load average (estimated on Windows)
 - Runtime information (uptime, FPS, Go version)
 
-## Dependencies
+## Future Enhancements
 
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea) - Terminal UI framework
-- [Lip Gloss](https://github.com/charmbracelet/lipgloss) - Styling library
+- Change default config location to OS appropriate locations (e.g., `~/.config/gophetch/` on Linux/macOS, `%APPDATA%\gophetch\` on Windows)
 
 ## License
 
