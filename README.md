@@ -286,10 +286,11 @@ Gophetch now supports two animation formats:
 
 ## Future Enhancements
 
-- Change default config location to OS-appropriate paths (e.g., `~/.config/gophetch/` on Linux/macOS, `%APPDATA%\gophetch\` on Windows)
-- Add auto-cycle feature for tabs for passive monitoring or demo usage
+- Change default config location to OS-appropriate paths (Linux/macOS: `~/.config/gophetch`, Windows: `%APPDATA%\gophetch`, Termux: `$HOME/.config/gophetch`)
+- Add auto-cycle feature for tabs to enable passive monitoring or demos
 
 ## License
 
 See [LICENSE](LICENSE) file for details.
+
 
