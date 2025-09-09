@@ -286,10 +286,10 @@ Gophetch now supports two animation formats:
 
 ## Future Enhancements
 
-- Change default config location to OS appropriate locations (e.g., `~/.config/gophetch/` on Linux/macOS, `%APPDATA%\gophetch\` on Windows)
-- Enhanced ANSI sequence processing for better .cast file rendering
-- Support for custom frame extraction intervals in .cast files
+- Change default config location to OS-appropriate paths (e.g., `~/.config/gophetch/` on Linux/macOS, `%APPDATA%\gophetch\` on Windows)
+- Add auto-cycle feature for tabs for passive monitoring or demo usage
 
 ## License
 
 See [LICENSE](LICENSE) file for details.
+
